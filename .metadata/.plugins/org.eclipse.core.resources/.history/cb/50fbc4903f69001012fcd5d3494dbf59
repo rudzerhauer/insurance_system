@@ -1,0 +1,11 @@
+package com.example.repository;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.example.security.User;
+
+public interface UserRepo extends JpaRepository<Long,User> {
+
+	User findByUsername(String username);
+	User findByVerificationCode()
+}

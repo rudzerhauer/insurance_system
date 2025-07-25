@@ -1,0 +1,6 @@
+package com.example.security;
+import jakarta.persistence.*;
+
+public class Users {
+
+}

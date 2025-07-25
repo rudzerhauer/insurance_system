@@ -1,0 +1,28 @@
+package com.example.service;
+
+import java.security.SecureRandom;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.example.repository.UserRepo;
+import com.example.security.User;
+
+@Service
+public class TwoFactorAuthService {
+
+	@Autowired
+	private UserRepo userRepo;
+	@Autowired
+	private Email email;
+	
+	public String generateAndSendCode(User user) {
+		String code = String.format("$06d", new SecureRandom().nextInt(99999));
+		user.setVerifactionCode(code);
+		user.setVerified(false);
+		userRepo.save(user);
+		
+	}
+	
+	
+}

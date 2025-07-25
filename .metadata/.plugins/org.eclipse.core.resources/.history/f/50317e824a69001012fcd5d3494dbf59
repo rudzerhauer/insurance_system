@@ -1,0 +1,34 @@
+package com.example.security;
+import jakarta.persistence.*;
+
+
+@Entity
+@Table(name="users")
+public class User {
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
+	private Long id;
+	
+	
+	@Column(unique = true)
+	private String userName;
+	private String password;
+	private String email;
+	private String role;
+	private String verificationCode;
+	private boolean isVerified;
+	
+	
+	
+	public void setVerifactionCode(String code) {
+		this.verificationCode = code;
+	}
+	public void setVerified(boolean true) {
+		this.isVerified = true;
+	}
+	
+	
+	
+	
+
+}

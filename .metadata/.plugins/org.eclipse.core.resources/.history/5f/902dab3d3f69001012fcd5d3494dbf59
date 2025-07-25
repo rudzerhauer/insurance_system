@@ -1,0 +1,11 @@
+package com.example.security;
+
+import org.springframework.stereotype.Service;
+
+@Service
+public class Email {
+
+	
+	@Autowired
+	private JavaMailSender javaMailSender;
+}
