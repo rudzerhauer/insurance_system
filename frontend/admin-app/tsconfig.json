@@ -1,0 +1,16 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "outDir": "./out-tsc",
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "importHelpers": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "sourceMap": true,
+    "declaration": false,
+    "skipLibCheck": true,
+    "strict": false
+  }
+}

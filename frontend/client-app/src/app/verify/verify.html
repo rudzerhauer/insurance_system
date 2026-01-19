@@ -1,0 +1,6 @@
+<h2>Enter verification code</h2>
+<form (ngSubmit)="submit()">
+  <input [(ngModel)]="code" name="code" required>
+  <button>Verify</button>
+</form>
+<p style="color:red" *ngIf="error">{{ error }}</p>

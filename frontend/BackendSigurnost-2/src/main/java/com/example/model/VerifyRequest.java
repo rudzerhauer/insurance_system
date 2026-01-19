@@ -1,0 +1,17 @@
+package com.example.model;
+public class VerifyRequest {
+	private String username;
+	private String code;
+	public void setUsername(String username) {
+		this.username = username;
+	}
+	public void setCode(String code) {
+		this.code = code;
+	}
+	public String getUsername() {
+		return this.username;
+	}
+	public String getCode() {
+		return this.code;
+	}
+}

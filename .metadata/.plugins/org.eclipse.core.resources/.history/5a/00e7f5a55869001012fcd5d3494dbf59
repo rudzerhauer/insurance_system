@@ -1,8 +1,0 @@
-package com.example.model;
-
-public class VerifyRequest {
-	
-	private String username;
-	private String code;
-
-}

@@ -1,5 +1,0 @@
-package com.example.repository;
-
-public interface UserRepo implenets JpaRepository<Long,User> {
-
-}

@@ -1,0 +1,104 @@
+package com.example.controller;
+
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.example.model.PaymentRequest;
+import com.example.model.Policy;
+import com.example.model.Transaction;
+import com.example.model.User;
+import com.example.repository.PolicyRepo;
+import com.example.repository.TransactionRepo;
+import com.example.repository.UserRepo;
+import com.example.service.Email;
+import com.example.service.PdfService;
+import com.stripe.model.PaymentIntent;
+import com.stripe.param.PaymentIntentCreateParams;
+
+@RestController
+@RequestMapping("/api/payments")
+public class PaymentController {
+
+    @Autowired
+    private TransactionRepo transactionRepo;
+
+    @Autowired
+    private UserRepo userRepo;
+
+    @Autowired
+    private PolicyRepo policyRepo;
+
+    @Autowired
+    private PdfService pdfService;
+
+    @Autowired
+    private Email emailService;
+
+
+    // 1) Create payment intent (Stripe)
+    @PostMapping("/create")
+    public ResponseEntity<?> createPayment(@RequestBody PaymentRequest request) throws Exception {
+
+        PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
+                .setAmount(request.getAmount())   // Stripe expects AMOUNT IN CENTS
+                .setCurrency(request.getCurrency())
+                .build();
+
+        PaymentIntent intent = PaymentIntent.create(params);
+
+        return ResponseEntity.ok(Map.of(
+                "clientSecret", intent.getClientSecret()
+        ));
+    }
+
+
+    // 2) Confirm payment and create invoice
+    @PostMapping("/confirm")
+    public ResponseEntity<?> confirm(@RequestBody PaymentRequest request, Authentication auth) throws Exception {
+
+        // derive user from authentication (safer than client-provided userId)
+        String username = auth != null ? auth.getName() : null;
+        if (username == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Not authenticated"));
+        }
+
+        User user = userRepo.findByUsername(username);
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "User not found"));
+        }
+
+        Policy policy = policyRepo.findById(request.getPolicyId())
+                .orElseThrow(() -> new RuntimeException("Policy not found"));
+
+        // --- create transaction ---
+        Transaction t = new Transaction();
+        t.setUser(user);
+        t.setPolicy(policy);
+        t.setAmount(policy.getPrice());
+        t.setProvider("Stripe");
+        t.setSuccess("SUCCESS");
+
+        t = transactionRepo.save(t);
+
+        // --- generate pdf ---
+        byte[] pdf = pdfService.generateInvoicePdf(t);
+
+        // --- send email ---
+        emailService.sendInvoice(user.getEmail(), pdf);
+
+        return ResponseEntity.ok(Map.of(
+                "message", "Payment confirmed",
+                "transactionId", t.getId(),
+                "policyId", policy.getId()
+        ));
+    }
+}

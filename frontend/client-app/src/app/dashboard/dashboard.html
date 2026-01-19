@@ -1,0 +1,7 @@
+<h2>Available Policies</h2>
+<ul>
+  <li *ngFor="let p of policies">
+    <b>{{ p.type }}</b> - {{ p.description }} - {{ p.price }} EUR
+    <button (click)="buyPolicy(p.id)">Buy</button>
+  </li>
+</ul>

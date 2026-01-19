@@ -1,0 +1,11 @@
+<div class="card">
+  <h2>SSO Test (Angular)</h2>
+  <p>Use this page to test the Keycloak SSO flow via the backend.</p>
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <button class="btn btn-primary" (click)="login()">Login</button>
+    <button class="btn btn-ghost" (click)="me()">Get /api/auth/me</button>
+    <button class="btn btn-ghost" (click)="logout()">Logout (UI)</button>
+  </div>
+  <h3>Response</h3>
+  <pre style="background:#f5f7fb;padding:12px;border-radius:8px">{{ out }}</pre>
+</div>

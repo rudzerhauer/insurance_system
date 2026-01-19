@@ -1,0 +1,14 @@
+<h2>My policies</h2>
+<div *ngIf="loading">Loading your policies…</div>
+<div *ngIf="!loading && (!myPolicies || myPolicies.length === 0)">You have no policies.</div>
+<ul>
+    <li *ngFor="let p of myPolicies">
+        <b>{{ p.type?.name || p.name || p.type }}</b>
+        - {{ p.type?.description || p.description }}
+        <div>
+          <small *ngIf="p.startDate || p.endDate">Start: {{ p.startDate }} — End: {{ p.endDate }}</small>
+          <small style="margin-left:8px">Price: €{{ p.price }}</small>
+        </div>
+        <button (click)="cancelPolicy(p.id)">Cancel</button>
+    </li>
+</ul>

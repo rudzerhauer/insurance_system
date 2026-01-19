@@ -1,0 +1,221 @@
+package com.example.controller;
+
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseCookie;
+
+import com.example.model.LoginRequest;
+import com.example.model.RefreshToken;
+import com.example.model.RegistrationRequest;
+import com.example.model.User;
+import com.example.model.VerifyRequest;
+import com.example.repository.RefreshTokenRepo;
+import com.example.repository.UserRepo;
+import com.example.service.RefreshTokenService;
+import com.example.service.TwoFactorAuthService;
+import com.example.service.UserService;
+import com.example.webSecurity.JwtUtil;
+
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletResponse;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+	@Autowired
+	private TwoFactorAuthService twoFactorAuthService;
+	@Autowired
+	private UserRepo userRepo;
+	@Autowired
+	private UserService userService;
+	@Autowired
+	private JwtUtil jwtUtil;
+	@Autowired
+	private PasswordEncoder passwordEncoder;
+	@Autowired
+	private RefreshTokenService refreshTokenService;
+	@Autowired
+	@Value("${jwt.access-exp-ms}")
+	private Long jwtAccessExpirySeconds;
+	@Autowired
+	@Value("${jwt.refresh-exp-ms}")
+	private Long jwtRefreshValidyMs;
+	@Autowired
+	@Value("${sso.cookie-domain}")
+	private String cookieDomain;
+	@Autowired
+	@Value("${sso.use-cookie}")
+	private boolean useCookie;
+	@Autowired
+	private RefreshTokenRepo refreshTokenRepo;
+	
+	private void setAuthCookies(HttpServletResponse response, String access, String refresh) {
+		ResponseCookie accessCookie = ResponseCookie.from("ACCESS_TOKEN", access)
+			    .httpOnly(true)
+			    .path("/")
+			    .maxAge(300) 
+			    .sameSite("Lax")
+			    .secure(false) 
+			    .build();
+
+	    ResponseCookie refreshCookie = ResponseCookie.from("REFRESH_TOKEN", refresh)
+	        .httpOnly(true)
+	        .secure(false)
+	        .path("/")
+	        .sameSite("Lax")
+	        .maxAge(jwtUtil.getRefreshExpirationMs() / 1000)
+	        .build();
+
+	    response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
+	    response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+	}
+
+	private void setAccessCookie(HttpServletResponse response, String access) {
+	    ResponseCookie cookie = ResponseCookie.from("ACCESS_TOKEN", access)
+	        .httpOnly(true)
+	        .secure(false)
+	        .path("/")
+	        .sameSite("Lax")
+	        .maxAge(300)
+	        .build();
+
+	    response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+	}
+	
+	
+	
+	
+	@PostMapping("/login")
+	public ResponseEntity<?> login(@RequestBody LoginRequest req, HttpServletResponse res) {
+
+	    User user = userService.authenticate(req.getUsername(), req.getPassword());
+	    if (user == null) return ResponseEntity.status(401).body("Invalid credentials");
+
+	    if (!user.isVerified()) {
+	        twoFactorAuthService.generateAndSendCode(user);
+	        return ResponseEntity.ok(Map.of("verified", false));
+	    }
+
+	    String access = jwtUtil.generateAccessToken(user.getUsername(), user.getRole());
+	    String refresh = jwtUtil.generateRefreshToken(user.getUsername());
+
+	    ResponseCookie accessCookie = ResponseCookie.from("ACCESS_TOKEN", access)
+	            .httpOnly(true).secure(false).path("/")
+	            .sameSite("Lax").maxAge(jwtUtil.getAccessExpirationMs() / 1000)
+	            .build();
+
+	    ResponseCookie refreshCookie = ResponseCookie.from("REFRESH_TOKEN", refresh)
+	            .httpOnly(true).secure(false).path("/api/auth")
+	            .sameSite("Lax").maxAge(jwtUtil.getRefreshExpirationMs() / 1000)
+	            .build();
+
+	    res.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
+	    res.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+
+	    return ResponseEntity.ok(Map.of("verified", true));
+	}
+
+
+
+	@PostMapping("/verify")
+	public ResponseEntity<?> verify(
+	        @RequestBody VerifyRequest request,
+	        HttpServletResponse response
+	) {
+	    if (!twoFactorAuthService.verifyCode(request.getUsername(), request.getCode())) {
+	        return ResponseEntity.status(401).body("invalid code");
+	    }
+
+	    User user = userRepo.findByUsername(request.getUsername());
+	    if (user == null) return ResponseEntity.status(404).body("User not found");
+
+	    String accessToken = jwtUtil.generateAccessToken(user.getUsername(), user.getRole());
+	    RefreshToken refresh = refreshTokenService.createRefreshToken(user, jwtRefreshValidyMs);
+
+	    setAuthCookies(response, accessToken, refresh.getToken());
+
+	    return ResponseEntity.ok(Map.of("message", "verified"));
+	}
+
+	@PostMapping("/register")
+	public ResponseEntity<?> register(@RequestBody RegistrationRequest request) {
+	    System.out.println("BODY = " + request.getUsername() + " | " + request.getEmail() + " | " + request.getPassword());
+
+		try {
+			userService.register(request);
+			return ResponseEntity.ok("User registered. Verification code sent to email");
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.badRequest().body(e.getMessage());
+		} catch (Exception e) {
+			return ResponseEntity.status(500).body("Internal server error");
+		}
+	}
+	
+	@PostMapping("/refresh")
+	public ResponseEntity<?> refresh(@CookieValue(name = "REFRESH_TOKEN", required = false) String token) {
+
+	    if (token == null) {
+	        return ResponseEntity.status(401).body("No refresh token");
+	    }
+
+	    RefreshToken rt = refreshTokenRepo.findByToken(token).orElse(null);
+	    if (rt == null || !refreshTokenService.isValid(rt)) {
+	        return ResponseEntity.status(401).body("Invalid or expired token");
+	    }
+
+	    String newAccess = jwtUtil.generateAccessToken(rt.getUser().getUsername(), rt.getUser().getRole());
+
+	    ResponseCookie newAccessCookie = ResponseCookie.from("ACCESS_TOKEN", newAccess)
+	            .httpOnly(true)
+	            .path("/")
+	            .maxAge(jwtUtil.getAccessExpirationMs() / 1000)
+	            .sameSite("Lax")
+	            .secure(false)
+	            .build();
+
+	    return ResponseEntity.ok()
+	        .header(HttpHeaders.SET_COOKIE, newAccessCookie.toString())
+	        .body(Map.of("status", "refreshed"));
+	}
+
+
+	
+	@GetMapping("/me")
+	public ResponseEntity<?> me(Authentication authentication) {
+	    if (authentication == null) {
+	        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+	    }
+	    Map<String, Object> userInfo = Map.of(
+	        "username", authentication.getName(),
+	        "role", authentication.getAuthorities().iterator().next().getAuthority()
+	    );
+	    return ResponseEntity.ok(userInfo);
+	}
+	@PostMapping("/logout")
+	public ResponseEntity<?> logout(@RequestBody Map<String,String> body, HttpServletResponse response) {
+	    String refreshToken = body.get("refreshToken");
+	    if (refreshToken != null) refreshTokenRepo.findByToken(refreshToken).ifPresent(refreshTokenRepo::delete);
+	    ResponseCookie clearAccess = ResponseCookie.from("ACCESS_TOKEN", "").httpOnly(true).secure(false).path("/").maxAge(0).domain(cookieDomain).build();
+	    response.addHeader(HttpHeaders.SET_COOKIE, clearAccess.toString());
+	    ResponseCookie clearRefresh = ResponseCookie.from("REFRESH_TOKEN","").httpOnly(true).secure(false).path("/api/auth").maxAge(0).domain(cookieDomain).build();
+	    response.addHeader(HttpHeaders.SET_COOKIE, clearRefresh.toString());
+	    return ResponseEntity.ok(Map.of("message", "logged out"));
+	}
+	
+	
+}

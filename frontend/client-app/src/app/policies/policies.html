@@ -1,0 +1,33 @@
+<h2>Available Policies</h2>
+<div style="margin-bottom:12px">
+  <a routerLink="/my-policies" style="text-decoration:none;padding:6px 10px;background:#e8f0ff;border-radius:6px;color:#1a73e8;">My Policies</a>
+</div>
+<div *ngIf="!loading && (!policies || policies.length === 0)">No policies available.</div>
+<div *ngFor="let p of policies" class="policy-item">
+  <div class="policy-meta">
+    <p class="policy-title">{{ p.name }}</p>
+    <p class="policy-desc">{{ p.description }}</p>
+  </div>
+  <div class="policy-actions">
+    <div style="text-align:right">
+      <p class="policy-price">€{{ p.basePrice }}</p>
+      <div *ngIf="p.owned" class="owned-badge">Kupljeno</div>
+      <button *ngIf="!p.owned" class="btn btn-primary" (click)="buy(p)">Buy</button>
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop" *ngIf="showPaymentModal" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);z-index:1000;">
+  <div class="modal" style="background:#fff;padding:20px;border-radius:8px;max-width:520px;width:90%;box-shadow:0 6px 18px rgba(0,0,0,0.15);">
+    <h3 style="margin-top:0">Pay for: {{ currentPolicy?.name || currentPolicy?.type }}</h3>
+    <p *ngIf="currentPolicy">Amount: €{{ currentPolicy.basePrice }}</p>
+    <div id="card-element" style="margin:12px 0;padding:12px;border:1px solid #e6e6e6;border-radius:6px;"></div>
+    <div *ngIf="paymentError" style="color:#b00020;margin-bottom:8px">{{ paymentError }}</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button (click)="closePaymentModal()" style="background:#eee;padding:8px 12px;border-radius:6px" [disabled]="isConfirming">Cancel</button>
+      <button (click)="confirmCardPayment()" [disabled]="isConfirming" style="background:#5469d4;color:#fff;padding:8px 12px;border-radius:6px">
+        <span *ngIf="!isConfirming">Pay</span>
+        <span *ngIf="isConfirming">Processing…</span>
+      </button>
+    </div>
+  </div>
+</div>

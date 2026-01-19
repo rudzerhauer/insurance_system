@@ -1,0 +1,30 @@
+{
+  "name": "admin-app-2",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve --port 4201",
+    "start:proxy": "ng serve --port 4201 --proxy-config proxy.conf.json",
+    "build": "ng build",
+    "test": "ng test"
+  },
+  "dependencies": {
+    "@angular/animations": "~20.1.0",
+    "@angular/common": "~20.1.0",
+    "@angular/compiler": "~20.1.0",
+    "@angular/core": "~20.1.0",
+    "@angular/forms": "~20.1.0",
+    "@angular/platform-browser": "~20.1.0",
+    "@angular/platform-browser-dynamic": "~20.1.0",
+    "@angular/router": "~20.1.0",
+    "rxjs": "~7.8.0",
+    "zone.js": "~0.13.0"
+  },
+  "devDependencies": {
+    "@angular/cli": "~20.1.6",
+    "@angular/compiler-cli": "~20.1.0",
+    "@angular-devkit/build-angular": "~20.1.6",
+    "typescript": "~5.8.3"
+  }
+}

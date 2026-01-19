@@ -1,0 +1,121 @@
+package com.example.webSecurity;
+
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.http.ResponseCookie;
+
+import com.example.model.User;
+import com.example.repository.UserRepo;
+
+import io.jsonwebtoken.io.IOException;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+@Component
+public class JwtAuthFilter extends OncePerRequestFilter{
+
+		@Autowired
+		private JwtUtil jwtUtil;
+		@Autowired
+		private UserRepo userRepo;
+		
+		
+		
+		@Override
+		protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws IOException, ServletException, java.io.IOException {
+			logger.info("Incoming request {} {}", request.getMethod(), request.getRequestURI());
+
+			// list cookies present
+			Cookie[] cookies = request.getCookies();
+			if (cookies == null) {
+			    logger.info("No cookies on request");
+			} else {
+			    for (Cookie c : cookies) {
+			        logger.info("Cookie: name='{}' value='{}' path='{}' secure={} httpOnly={}",
+			            c.getName(),
+			            (c.getValue()!=null && c.getValue().length()>20 ? c.getValue().substring(0,20) + "..." : c.getValue()),
+			            c.getPath(), c.getSecure(), /* httpOnly not available on Cookie object for some APIs */ "n/a");
+			    }
+			}
+
+			// check Authorization header
+			String authHeader = request.getHeader("Authorization");
+			logger.info("Authorization header: {}", authHeader);
+			String path = request.getServletPath();
+		    System.out.println("JwtAuthFilter: Processing path: " + path);
+			
+	        if (path.startsWith("/api/auth")) {
+	            chain.doFilter(request, response);
+	            return;
+	        }
+
+			
+	        String token = null;
+	        String authHeader = request.getHeader("Authorization");
+	        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+	            token = authHeader.substring(7);
+	        } else {
+	            
+	            if (token == null && request.getCookies() != null) {
+	                for (Cookie c : request.getCookies()) {
+	                    if ("ACCESS_TOKEN".equals(c.getName())) {
+	                        token = c.getValue();
+	                        break;
+	                    }
+	                }
+	            }
+	        }
+	        
+
+	        if (token == null) {
+	            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+	            response.getWriter().write("Missing token");
+	            return;
+	        }
+
+	        if (!jwtUtil.isTokenValid(token)) {
+	            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+	            response.getWriter().write("Invalid or expired token");
+	            return;
+	        }
+
+	        String username = jwtUtil.extractUsername(token);
+	        User user = userRepo.findByUsername(username);
+	        if (user == null) {
+	            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+	            response.getWriter().write("User not found");
+	            return;
+	        }
+
+	        var auth = new UsernamePasswordAuthenticationToken(user.getUsername(), null,
+	                List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole())));
+	        SecurityContextHolder.getContext().setAuthentication(auth);
+	        
+	        if (request.getRequestURI().equals("/api/payments/create") 
+	        	    && request.getMethod().equalsIgnoreCase("POST")) {
+
+	        	   // long amount = jwtUtil(request);
+	        	    //if(true) 
+	        	{  
+	        	        System.out.println("SUSPICIOUS PAYMENT DETECTED");
+	        	        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+	        	        response.getWriter().write("Suspicious request – session terminated");
+	        	        return;
+	        	    }
+	        	}
+	        
+
+	        chain.doFilter(request, response);
+			
+		}
+		
+}

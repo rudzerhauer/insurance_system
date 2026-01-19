@@ -1,0 +1,7 @@
+.policy-item button {
+  background: #2d6cdf;
+  padding: 8px 16px;
+}
+.policy-item button:hover {
+  background: #1f4fb3;
+}
